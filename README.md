@@ -1,1 +1,2 @@
-# esp32-wifi-iot
+# esp32-wifi-homesensors
+My ESP32 sensor IoT project
