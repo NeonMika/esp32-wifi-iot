@@ -1,0 +1,117 @@
+<html>
+
+<head>
+	<meta name=”robots” content=”noindex”>
+	<meta charset="UTF-8">
+	<title>Home Automation</title>
+	<script src="https://d3js.org/d3.v7.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/@observablehq/plot@0.4"></script>
+</head>
+
+<body>
+	<div id="app">
+		<h1>Home Automation</h1>
+		<div id="temp-chart-test"></div>
+	</div>
+	<script type="module">
+		import * as Plot from "https://cdn.skypack.dev/@observablehq/plot@0.4";
+
+		const plotTestTemperatures = function (data) {
+			const div = document.getElementById('temp-chart-test')
+			div.appendChild(Plot.plot({
+				color: {
+					type: "ordinal",
+					scheme: "category10",
+					legend: true
+				},
+				facet: { data: data, x: "device", grid: true, },
+				grid: true,
+				marks: [
+					Plot.frame(),
+					Plot.dot(data, { x: "timestamp", y: "temp", r: 4, opacity: 0.8, fill: d => `Sensor ${d.sensor} of ${d.device}` }),
+					// HERE I NEED HELP
+					// does not yet work, connects all dots independent of color
+					Plot.line(data, { x: "timestamp", y: "temp", z: (d) => `Sensor ${d.sensor} of device ${d.device}`, opacity: 0.8, stroke: "black" })
+				],
+			}));
+		}
+
+
+		plotTestTemperatures([
+			{
+				timestamp: 1,
+				device: 1,
+				sensor: 1,
+				temp: 20
+			},
+			{
+				timestamp: 2,
+				device: 1,
+				sensor: 1,
+				temp: 21
+			},
+			{
+				timestamp: 3,
+				device: 1,
+				sensor: 1,
+				temp: 22
+			},
+			{
+				timestamp: 1,
+				device: 1,
+				sensor: 2,
+				temp: 20.1
+			},
+			{
+				timestamp: 2,
+				device: 1,
+				sensor: 2,
+				temp: 21.3
+			},
+			{
+				timestamp: 3,
+				device: 1,
+				sensor: 2,
+				temp: 22.5
+			},
+			{
+				timestamp: 1,
+				device: 2,
+				sensor: 1,
+				temp: 18
+			},
+			{
+				timestamp: 2,
+				device: 2,
+				sensor: 1,
+				temp: 19
+			},
+			{
+				timestamp: 3,
+				device: 2,
+				sensor: 1,
+				temp: 20
+			},
+			{
+				timestamp: 1,
+				device: 2,
+				sensor: 2,
+				temp: 17.8
+			},
+			{
+				timestamp: 2,
+				device: 2,
+				sensor: 2,
+				temp: 19.1
+			},
+			{
+				timestamp: 3,
+				device: 2,
+				sensor: 2,
+				temp: 20.1
+			},
+		])
+	</script>
+</body>
+
+</html>
