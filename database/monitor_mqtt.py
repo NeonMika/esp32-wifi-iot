@@ -6,7 +6,13 @@ import pymongo # pip install pymongo pymongo[srv]
 import os
 import re
 
-client = pymongo.MongoClient("mongodb+srv://USER:PASSWORD@DATABASE?retryWrites=true&w=majority") # TODO!
+if "IOT_DB" not in os.environ:
+    print("IOT_DB environment variable not set, has to contain the connection string for the database!\nExiting mqtt monitor now.")
+    exit(-1)
+if "MQTT_IP" not in os.environ:
+    print("MQTT_IP environment variable not set, has to contain the IP adress of the MQTT server!\nExiting mqtt monitor now.")
+    exit(-2)
+client = pymongo.MongoClient(os.environ["IOT_DB"])
 messagesDb = client.messages
 
 pp = pprint.PrettyPrinter(indent=4)
@@ -55,7 +61,8 @@ def on_message(client, userdata, msg):
     if(m is not None):
       mac = m.group(1)
       sensorNr = m.group(2)
-      messagesDb.temp.insert_one({"topic": topic, "mac": mac, "sensorNr" : sensorNr, "temp" : payload, "timestamp": timestamp})
+      x = messagesDb.temp.insert_one({"topic": topic, "mac": mac, "sensorNr" : sensorNr, "temp" : payload, "timestamp": timestamp})
+      print(f'Inserted document with id {x.inserted_id}.')
         
     #print("==================")
     #print(client)
@@ -68,7 +75,8 @@ client = mqtt.Client()
 client.on_connect = on_connect
 client.on_message = on_message
 
-client.connect("192.168.XXX.YYY", 1883, 60) # TODO!
+mqtt_ip = os.environ["MQTT_IP"]
+client.connect(mqtt_ip, 1883, 60) 
 
 # Blocking call that processes network traffic, dispatches callbacks and
 # handles reconnecting.

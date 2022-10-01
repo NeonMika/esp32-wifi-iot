@@ -3,7 +3,10 @@ const router = express.Router();
 
 const { MongoClient } = require('mongodb');
 
-const uri = 'mongodb+srv://USER:PW@DB-PATH/db?retryWrites=true&w=majority'; # TODO
+const uri = process.env.IOT_DB;
+if(!uri) {
+    throw new Error("Environment variable IOT_DB is not set, has to contain the database connection string");
+}
 const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
 client.connect((err) => {
   if (err) throw err;
