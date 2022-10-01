@@ -12,8 +12,14 @@ client.connect((err) => {
   if (err) throw err;
 
   router.get('/', (req, res, next) => {
+    const t_start = new Date().getTime()
     client.db('messages').collection('temp').find().toArray((err, temps) => {
-      res.send(temps);
+      const t_end = new Date().getTime()
+      const query_duration = t_end - t_start
+      res.send({
+        query_duration,
+        temps
+      });
     });
   });
 
@@ -64,14 +70,20 @@ client.connect((err) => {
     ];
 
     const coll = client.db('messages').collection('temp');
+    const t_start = new Date().getTime()
     coll.aggregate(agg)
       // .limit(+req.params.n)
       .toArray((temp_err, aggregated_temps) => {
+        const t_end = new Date().getTime()
+        const query_duration = t_end - t_start
         if (err) {
           console.err(`#temprouter: ${temp_err}`);
           res.send(temp_err);
         } else {
-          res.send(aggregated_temps);
+          res.send({
+            query_duration,
+            aggregated_temps
+          });
         }
       });
   });

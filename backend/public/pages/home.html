@@ -23,8 +23,9 @@
 			<input name="temp-date-to" type="date" id="temp-date-to" v-model="temp_date_to">
 			<input name="temp-time-to" type="time" id="temp-time-to" v-model="temp_time_to">
 		</form>
-		<div id="temp-charts" v-html="temp_charts_html"></div>
-		<div id="temp-chart" v-html="temp_chart_html"></div>
+		<div id="temp-charts" v-html="temp_charts_html" style="background-color: lightgray; min-height: 20;"></div>
+		<br/>
+		<div id="temp-chart" v-html="temp_chart_html" style="background-color: lightgray; min-height: 20;"></div>
 		<pre>{{ !is_loading ? JSON.stringify(filtered_temps, null, 2) : '... loading data from server ...'}}</pre>
 	</div>
 	<script type="module">
@@ -68,7 +69,7 @@
 						const t_start = new Date().getTime()
 						const filtered = this.temps.filter(d => d.timestamp >= this.temp_from && d.timestamp <= this.temp_to)
 						const t_end = new Date().getTime()
-						console.log(`Filtering took ${t_end - t_start}ms`)
+						console.log(`Filtering took ${t_end - t_start}ms, ${filtered.length} data points returned`)
 						return filtered
 					}
 					return []
@@ -85,10 +86,9 @@
 					if (this.is_rendering) {
 						this.repeat_render = true
 					}
-					console.log("plot enter")
 
 					do {
-						console.log("plot repeat")
+						console.log("plot loop")
 						this.is_rendering = true
 						this.repeat_render = false
 
@@ -96,6 +96,7 @@
 						await this.plotCharts(data)
 						await this.plotChart(data)
 					} while (this.repeat_renders)
+						console.log("plot loop done")
 					this.is_rendering = false
 				},
 				plotCharts: async function (data) {
@@ -159,7 +160,7 @@
 							}).outerHTML
 
 							const t_end = new Date().getTime()
-							console.log(`Plotting took ${t_end - t_start}ms for ${data.length} data points`)
+							console.log(`Plotting charts took ${t_end - t_start}ms for ${data.length} data points`)
 
 							resolve()
 						});
@@ -210,7 +211,7 @@
 							}).outerHTML
 
 							const t_end = new Date().getTime()
-							console.log(`Plotting took ${t_end - t_start}ms for ${data.length} data points`)
+							console.log(`Plotting chart took ${t_end - t_start}ms for ${data.length} data points`)
 
 							resolve()
 						});
@@ -222,7 +223,9 @@
 					console.log("... loading data ...")
 					let t_start = new Date().getTime()
 					this.is_loading = true
-					this.temps = (await axios.get("/api/sensors/temp/5mins")).data.map(t => {
+					const api_response = (await axios.get("/api/sensors/temp/5mins")).data
+					console.log(api_response)
+					this.temps = api_response.aggregated_temps.map(t => {
 						if (!device_numbers[t.mac_address]) {
 							device_numbers[t.mac_address] = i
 							i++
@@ -264,7 +267,7 @@
 				}
 			},
 			async mounted() {
-				this.reload();
+				await this.reload();
 			}
 		}
 
