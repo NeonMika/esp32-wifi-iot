@@ -23,6 +23,7 @@
 			<input name="temp-date-to" type="date" id="temp-date-to" v-model="temp_date_to">
 			<input name="temp-time-to" type="time" id="temp-time-to" v-model="temp_time_to">
 		</form>
+		<div id="temp-charts" v-html="temp_charts_html"></div>
 		<div id="temp-chart" v-html="temp_chart_html"></div>
 		<pre>{{ !is_loading ? JSON.stringify(filtered_temps, null, 2) : '... loading data from server ...'}}</pre>
 	</div>
@@ -49,6 +50,7 @@
 
 					is_rendering: false,
 					repeat_render: false,
+					temp_charts_html: null,
 					temp_chart_html: null,
 
 					d3: Object.freeze(d3),
@@ -90,74 +92,129 @@
 						this.is_rendering = true
 						this.repeat_render = false
 
-						const div = document.getElementById('temp-chart')
 						const data = this.filtered_temps;
-
-						const first_date = d3.min(data.map(x => x.timestamp))
-						const last_date = d3.max(data.map(x => x.timestamp))
-
-						if (!first_date) {
-							this.temp_chart_html = ""
-							return
-						}
-
-						const seconds_range = (last_date.getTime() - first_date.getTime()) / 1000
-						const minutes_range = seconds_range / 60
-
-						const BIN_WIDTH = 15
-						const n_bins = Math.round(minutes_range / BIN_WIDTH)
-
-						if (data.length > 0) {
-							const t_start = new Date().getTime()
-
-							await new Promise(resolve => {
-								this.temp_chart_html = Plot.plot({
-									width: div.clientWidth,
-									color: {
-										type: "categorical",
-										scheme: "pastel1",
-										// legend: "ramp",
-										legend: true
-									},
-									x: { type: "utc", tickRotate: -30, ticks: 12, nice: true },
-									y: { type: "linear", nice: true },
-									facet: { data: data, x: "mac_address" },
-									grid: true,
-									marks: [
-										Plot.frame(),
-										Plot.areaY(
-											data,
-											Plot.binX(
-												{ y1: "min", y2: "max", filter: null },
-												{ x: "timestamp", thresholds: n_bins, y: "temp", fillOpacity: 0.2, inset: 0, }
-											)
-										),
-										Plot.line(
-											data,
-											Plot.binX(
-												{ y: "mean", filter: null },
-												{ x: "timestamp", thresholds: n_bins, y: "temp", stroke: "sensor_id", strokeWidth: 1.5, inset: 0, }
-											)
-										),
-										Plot.line(
-											data,
-											Plot.binX(
-												{ y: "mean", filter: null },
-												{ x: "timestamp", thresholds: n_bins, y: "temp", stroke: "black", strokeWidth: 1.5, inset: 0, }
-											)
-										),
-										//Plot.line(data,  Plot.groupX({ y: data => (data.length == 1 && !data[0]) ? undefined : data.reduce((a,b) => a + b, 0) / data.length }, { x: d => new Date(d.timestamp.getTime()).setSeconds(0, 0), y: "temp", stroke: "black", strokeWidth: 7.5, curve: "natural" }))
-									],
-								}).outerHTML
-
-								const t_end = new Date().getTime()
-								console.log(`Plotting took ${t_end - t_start}ms for ${data.length} data points`)
-
-								resolve()
-							});
-						}
+						await this.plotCharts(data)
+						await this.plotChart(data)
 					} while (this.repeat_renders)
 					this.is_rendering = false
+				},
+				plotCharts: async function (data) {
+					const div = document.getElementById('temp-charts')
+
+					const first_date = d3.min(data.map(x => x.timestamp))
+					const last_date = d3.max(data.map(x => x.timestamp))
+
+					if (!first_date) {
+						this.temp_charts_html = ""
+						return
+					}
+
+					const seconds_range = (last_date.getTime() - first_date.getTime()) / 1000
+					const minutes_range = seconds_range / 60
+
+					const BIN_WIDTH = 15
+					const n_bins = Math.round(minutes_range / BIN_WIDTH)
+
+					if (data.length > 0) {
+						const t_start = new Date().getTime()
+
+						await new Promise(resolve => {
+							this.temp_charts_html = Plot.plot({
+								width: div.clientWidth,
+								color: {
+									type: "categorical",
+									scheme: "pastel1",
+									// legend: "ramp",
+									legend: true
+								},
+								x: { type: "utc", tickRotate: -30, ticks: 12, nice: true },
+								y: { type: "linear", nice: true },
+								facet: { data: data, x: "mac_address" },
+								grid: true,
+								marks: [
+									Plot.frame(),
+									Plot.areaY(
+										data,
+										Plot.binX(
+											{ y1: "min", y2: "max", filter: null },
+											{ x: "timestamp", thresholds: n_bins, y: "temp", fillOpacity: 0.2, inset: 0, }
+										)
+									),
+									Plot.line(
+										data,
+										Plot.binX(
+											{ y: "mean", filter: null },
+											{ x: "timestamp", thresholds: n_bins, y: "temp", stroke: "sensor_id", strokeWidth: 1.5, inset: 0, }
+										)
+									),
+									Plot.line(
+										data,
+										Plot.binX(
+											{ y: "mean", filter: null },
+											{ x: "timestamp", thresholds: n_bins, y: "temp", stroke: "black", strokeWidth: 1.5, inset: 0, }
+										)
+									),
+									//Plot.line(data,  Plot.groupX({ y: data => (data.length == 1 && !data[0]) ? undefined : data.reduce((a,b) => a + b, 0) / data.length }, { x: d => new Date(d.timestamp.getTime()).setSeconds(0, 0), y: "temp", stroke: "black", strokeWidth: 7.5, curve: "natural" }))
+								],
+							}).outerHTML
+
+							const t_end = new Date().getTime()
+							console.log(`Plotting took ${t_end - t_start}ms for ${data.length} data points`)
+
+							resolve()
+						});
+					}
+				},
+				plotChart: async function (data) {
+					const div = document.getElementById('temp-chart')
+
+					const first_date = d3.min(data.map(x => x.timestamp))
+					const last_date = d3.max(data.map(x => x.timestamp))
+
+					if (!first_date) {
+						this.temp_chart_html = ""
+						return
+					}
+
+					const seconds_range = (last_date.getTime() - first_date.getTime()) / 1000
+					const minutes_range = seconds_range / 60
+
+					const BIN_WIDTH = 15
+					const n_bins = Math.round(minutes_range / BIN_WIDTH)
+
+					if (data.length > 0) {
+						const t_start = new Date().getTime()
+
+						await new Promise(resolve => {
+							this.temp_chart_html = Plot.plot({
+								width: div.clientWidth,
+								color: {
+									type: "categorical",
+									// scheme: "pastel1",
+									// legend: "ramp",
+									legend: true
+								},
+								x: { type: "utc", tickRotate: -30, ticks: 12, nice: true },
+								y: { type: "linear", nice: true },
+								grid: true,
+								marks: [
+									Plot.frame(),
+									Plot.line(
+										data,
+										Plot.binX(
+											{ y: "mean", filter: null },
+											{ x: "timestamp", thresholds: n_bins, y: "temp", stroke: "mac_address", strokeWidth: 2.5, inset: 0, }
+										)
+									)
+								],
+							}).outerHTML
+
+							const t_end = new Date().getTime()
+							console.log(`Plotting took ${t_end - t_start}ms for ${data.length} data points`)
+
+							resolve()
+						});
+					}
 				},
 				reload: async function () {
 					const device_numbers = {}
