@@ -9,34 +9,124 @@
 	<!--<script src="https://cdn.plot.ly/plotly-2.8.3.min.js"></script>-->
 	<script src="https://cdn.plot.ly/plotly-2.2.0.min.js"></script>
 	<script src="https://d3js.org/d3.v7.min.js"></script>
+
+	<style>
+	body {
+	  margin: 0px;
+	}
+
+	.banner {
+      background-color: #2471a3;
+	  color: white;
+	}
+
+	.sub {
+	  border-left: 1px solid black;
+	  margin-left: 6px;
+	}
+
+	.sub .banner {
+      background-color: #1C5A82;
+	  color: white;
+	}
+
+	.subsub {
+	  border-left: 1px solid black;
+	  margin-left: 12px;
+	}
+
+	.subsub .banner {
+      background-color: #174b6d;
+	  color: white;
+	}
+
+	h1 {
+	  margin: 0px;
+	  padding: 12px;
+	}
+
+	h2 {
+	  margin: 0px;
+	  padding: 12px;
+	}
+
+	h3 {
+	  margin: 0px;
+	  padding: 12px;
+	}
+
+	form {
+	  padding: 12px;
+	}
+
+	button {
+	  margin: 6px 0px;
+	}
+
+	p {
+	  margin: 0px;
+	}
+	</style>
 </head>
 
 <body>
 	<div id="app">
-		<h1>Home Automation</h1>
-		<h3>Temparature</h3>
-		<form>
-			<span> From </span>
-			<input name="temp-date-from" type="date" id="temp-date-from" v-model="temp_date_from">
-			<input name="temp-time-from" type="time" id="temp-time-from" v-model="temp_time_from">
-			<span> to </span>
-			<input name="temp-date-to" type="date" id="temp-date-to" v-model="temp_date_to">
-			<input name="temp-time-to" type="time" id="temp-time-to" v-model="temp_time_to">
-		</form>
-		<div id="temp-charts" v-html="temp_charts_html" style="background-color: lightgray; min-height: 20;"></div>
-		<br/>
-		<div id="temp-chart" v-html="temp_chart_html" style="background-color: lightgray; min-height: 20;"></div>
-		<pre>{{ !is_loading ? JSON.stringify(filtered_temps, null, 2) : '... loading data from server ...'}}</pre>
+		<div class="banner">
+			<h1>Home Automation</h1>
+		</div>
+		<div class="sub">
+			<div class="banner">
+				<h3>Temperatur</h3>
+			</div>
+			<form>
+				<input name="temp-date-from" type="date" id="temp-date-from" v-model="temp_date_from">
+				<input name="temp-time-from" type="time" id="temp-time-from" v-model="temp_time_from">
+				<span> to </span>
+				<input name="temp-date-to" type="date" id="temp-date-to" v-model="temp_date_to">
+				<input name="temp-time-to" type="time" id="temp-time-to" v-model="temp_time_to">
+				<br/>
+				<button type="button" @click="loadAndPlot">Load and plot</button>
+				<br/>
+				<img v-if="is_loading" src="https://media.tenor.com/o8m3bKTsifUAAAAC/hold-on.gif" height="32"></img>
+				<p> {{ !is_loading ? temps.length + ' data points loaded' : '... loading data from server ...'}}</p>
+			</form>
+
+
+			<div class="subsub">
+				<div class="banner">
+					<h3>R&auml;ume</h3>
+				</div>
+				<div id="temp-chart" v-html="temp_chart_html"></div>
+			</div>
+
+			<div class="subsub">
+				<div class="banner">
+					<h3>Sensoren</h3>
+				</div>
+				<div id="temp-charts" v-html="temp_charts_html"></div>
+			</div>
+		</div>
 	</div>
 	<script type="module">
 		import * as Plot from "https://cdn.skypack.dev/@observablehq/plot@0.4";
 
 		const now = new Date()
+		const hour = 1000 * 60 * 60
 
-		const today = d3.utcFormat("%Y-%m-%d")(now)
-		const now_hour_minutes = d3.utcFormat("%H:%M")(now)
+		const today = d3.utcFormat("%Y-%m-%d")(new Date(now.getTime() + 2 * hour))
+		const now_hour_minutes = d3.utcFormat("%H:%M")(new Date(now.getTime() + 2 * hour))
+		const yesterday = d3.utcFormat("%Y-%m-%d")(new Date(now.getTime() - 22 * hour))
 
-		const yesterday = d3.utcFormat("%Y-%m-%d")(new Date(now.getTime() - 1000 * 60 * 60 * 24))
+		const BIN_MINUTE_WIDTH = 60
+
+		function commonPlotSettings(div) {
+			return {
+				width: div.clientWidth,
+				x: { type: "utc", tickRotate: -30, ticks: 12, nice: true },
+				y: { type: "linear", nice: true },
+				grid: true,
+			}
+		}
 
 		const VuePage = {
 			data() {
@@ -50,7 +140,6 @@
 					temps: [],
 
 					is_rendering: false,
-					repeat_render: false,
 					temp_charts_html: null,
 					temp_chart_html: null,
 
@@ -59,97 +148,62 @@
 			},
 			computed: {
 				temp_from: function () {
-					return new Date(this.temp_date_from + "T" + this.temp_time_from)
+					return new Date(this.temp_date_from + "T" + this.temp_time_from + "Z")
 				},
 				temp_to: function () {
-					return new Date(this.temp_date_to + "T" + this.temp_time_to)
-				},
-				filtered_temps: function () {
-					if (this.temps) {
-						const t_start = new Date().getTime()
-						const filtered = this.temps.filter(d => d.timestamp >= this.temp_from && d.timestamp <= this.temp_to)
-						const t_end = new Date().getTime()
-						console.log(`Filtering took ${t_end - t_start}ms, ${filtered.length} data points returned`)
-						return filtered
-					}
-					return []
+					return new Date(this.temp_date_to + "T" + this.temp_time_to + "Z")
 				}
 			},
 			watch: {
-				filtered_temps: async function () {
-					await this.plotTemperatures()
-				}
+
 			},
 			methods: {
-				plotTemperatures: async function () {
+				plot: async function () {
 					console.log("plot call")
-					if (this.is_rendering) {
-						this.repeat_render = true
-					}
 
-					do {
-						console.log("plot loop")
-						this.is_rendering = true
-						this.repeat_render = false
-
-						const data = this.filtered_temps;
-						await this.plotCharts(data)
-						await this.plotChart(data)
-					} while (this.repeat_renders)
-						console.log("plot loop done")
+					this.is_rendering = true
+					this.temp_chart_html = ""
+					this.temp_charts_html = ""
+					await this.plotCharts()
+					await this.plotChart()
 					this.is_rendering = false
 				},
-				plotCharts: async function (data) {
+				plotCharts: async function () {
 					const div = document.getElementById('temp-charts')
 
-					const first_date = d3.min(data.map(x => x.timestamp))
-					const last_date = d3.max(data.map(x => x.timestamp))
-
-					if (!first_date) {
-						this.temp_charts_html = ""
-						return
-					}
-
-					const seconds_range = (last_date.getTime() - first_date.getTime()) / 1000
-					const minutes_range = seconds_range / 60
-
-					const BIN_WIDTH = 15
-					const n_bins = Math.round(minutes_range / BIN_WIDTH)
-
-					if (data.length > 0) {
+					if (this.temps.length > 0) {
 						const t_start = new Date().getTime()
+
+						const [first_date, last_date, n_bins] = this.plotPrep()
 
 						await new Promise(resolve => {
 							this.temp_charts_html = Plot.plot({
-								width: div.clientWidth,
+								...commonPlotSettings(div),
 								color: {
 									type: "categorical",
 									scheme: "pastel1",
 									// legend: "ramp",
 									legend: true
 								},
-								x: { type: "utc", tickRotate: -30, ticks: 12, nice: true },
-								y: { type: "linear", nice: true },
-								facet: { data: data, x: "mac_address" },
-								grid: true,
+								facet: { data: this.temps, x: "room" },
 								marks: [
 									Plot.frame(),
 									Plot.areaY(
-										data,
+										this.temps,
 										Plot.binX(
 											{ y1: "min", y2: "max", filter: null },
 											{ x: "timestamp", thresholds: n_bins, y: "temp", fillOpacity: 0.2, inset: 0, }
 										)
 									),
 									Plot.line(
-										data,
+										this.temps,
 										Plot.binX(
 											{ y: "mean", filter: null },
 											{ x: "timestamp", thresholds: n_bins, y: "temp", stroke: "sensor_id", strokeWidth: 1.5, inset: 0, }
 										)
 									),
 									Plot.line(
-										data,
+										this.temps,
 										Plot.binX(
 											{ y: "mean", filter: null },
 											{ x: "timestamp", thresholds: n_bins, y: "temp", stroke: "black", strokeWidth: 1.5, inset: 0, }
@@ -160,88 +214,93 @@
 							}).outerHTML
 
 							const t_end = new Date().getTime()
-							console.log(`Plotting charts took ${t_end - t_start}ms for ${data.length} data points`)
+							console.log(`Plotting charts took ${t_end - t_start}ms for ${this.temps.length} data points`)
 
 							resolve()
 						});
+					} else {
+						this.temp_charts_html = ""
 					}
 				},
-				plotChart: async function (data) {
+				plotChart: async function () {
 					const div = document.getElementById('temp-chart')
 
-					const first_date = d3.min(data.map(x => x.timestamp))
-					const last_date = d3.max(data.map(x => x.timestamp))
+					const [first_date, last_date, n_bins] = this.plotPrep()
 
-					if (!first_date) {
-						this.temp_chart_html = ""
-						return
-					}
-
-					const seconds_range = (last_date.getTime() - first_date.getTime()) / 1000
-					const minutes_range = seconds_range / 60
-
-					const BIN_WIDTH = 15
-					const n_bins = Math.round(minutes_range / BIN_WIDTH)
-
-					if (data.length > 0) {
+					if (this.temps.length > 0) {
 						const t_start = new Date().getTime()
 
 						await new Promise(resolve => {
 							this.temp_chart_html = Plot.plot({
-								width: div.clientWidth,
+								...commonPlotSettings(div),
 								color: {
 									type: "categorical",
 									// scheme: "pastel1",
 									// legend: "ramp",
 									legend: true
 								},
-								x: { type: "utc", tickRotate: -30, ticks: 12, nice: true },
-								y: { type: "linear", nice: true },
-								grid: true,
 								marks: [
 									Plot.frame(),
 									Plot.line(
-										data,
+										this.temps,
 										Plot.binX(
 											{ y: "mean", filter: null },
-											{ x: "timestamp", thresholds: n_bins, y: "temp", stroke: "mac_address", strokeWidth: 2.5, inset: 0, }
+											{ x: "timestamp", thresholds: n_bins, y: "temp", stroke: "room", strokeWidth: 2.5, inset: 0, }
 										)
 									)
 								],
 							}).outerHTML
 
 							const t_end = new Date().getTime()
-							console.log(`Plotting chart took ${t_end - t_start}ms for ${data.length} data points`)
+							console.log(`Plotting chart took ${t_end - t_start}ms for ${this.temps.length} data points`)
 
 							resolve()
 						});
+					} else {
+						this.temp_chart_html = ""
 					}
 				},
-				reload: async function () {
+				plotPrep : function() {
+					const data = this.temps
+					const first_date = d3.min(data.map(x => x.timestamp))
+					const last_date = d3.max(data.map(x => x.timestamp))
+
+					const seconds_range = (last_date.getTime() - first_date.getTime()) / 1000
+					const minutes_range = seconds_range / 60
+
+					const n_bins = Math.round(minutes_range / BIN_MINUTE_WIDTH)
+
+					return [first_date, last_date, n_bins]
+				},
+				loadAndPlot: async function() {
+					await this.load()
+					await this.plot()
+				},
+				load: async function () {
 					const device_numbers = {}
 					let i = 1;
 					console.log("... loading data ...")
 					let t_start = new Date().getTime()
 					this.is_loading = true
-					const api_response = (await axios.get("/api/sensors/temp/5mins")).data
+					const api_response = (await axios.get("/api/sensors/temp/mins", { "params": { "from": this.temp_from.getTime(), "to": this.temp_to.getTime(), "bin_minutes": 60 } })).data
 					console.log(api_response)
-					this.temps = api_response.aggregated_temps.map(t => {
-						if (!device_numbers[t.mac_address]) {
-							device_numbers[t.mac_address] = i
+					this.temps = api_response.temps.map(t => {
+						if (!device_numbers[t.mac]) {
+							device_numbers[t.mac] = i
 							i++
 						}
 
 						const ensureTwoDigit = n => (n > 9 ? "" : "0") + n;
 
-						const device_nr = device_numbers[t.mac_address]
-						const sensor_id = `Device ${device_nr}, sensor ${t.sensor_nr}`
-						const time_string = t._id.day_and_hour + ":" + ensureTwoDigit(t._id.five_min_slot * 5) + ":00Z"
+						const device_nr = device_numbers[t.mac]
+						const sensor_id = `${t.room}, sensor ${t.sensorNr}`
 
 						return {
-							timestamp: new Date(time_string),
-							temp: +t.avg_temp,
-							sensor_nr: +t.sensor_nr,
-							mac_address: t.mac_address,
+							timestamp: new Date(t.timestamp),
+							temp: +t.temp,
+							sensor_nr: +t.sensorNr,
+							mac_address: t.mac,
+							room: t.room,
 							device_nr: device_nr,
 							sensor_id: sensor_id
 						};
@@ -263,11 +322,12 @@
 					this.temps.sort(compare)
 					t_end = new Date().getTime()
 					console.log(`Sorting took ${t_end - t_start}ms`)
+					console.log(this.temps)
 					this.is_loading = false
 				}
 			},
 			async mounted() {
-				await this.reload();
+				await this.loadAndPlot()
 			}
 		}
 

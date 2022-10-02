@@ -61,7 +61,13 @@ def on_message(client, userdata, msg):
     if(m is not None):
       mac = m.group(1)
       sensorNr = m.group(2)
-      x = messagesDb.temp.insert_one({"topic": topic, "mac": mac, "sensorNr" : sensorNr, "temp" : payload, "timestamp": timestamp})
+      roomNameCursor = messagesDb.names.find({"mac": mac}).sort("since", -1).limit(1)
+      try:
+        doc = roomNameCursor.next()
+      except StopIteration:
+        doc = None
+      print(doc)
+      x = messagesDb.temp.insert_one({"topic": topic, "room": doc["name"] if doc is not None else "Unbekannter Raum", "mac": mac, "sensorNr" : sensorNr, "temp" : payload, "timestamp": timestamp})
       print(f'Inserted document with id {x.inserted_id}.')
         
     #print("==================")

@@ -12,59 +12,83 @@ client.connect((err) => {
   if (err) throw err;
 
   router.get('/', (req, res, next) => {
+    const temp_from = req.query.from ? new Date(+req.query.from) : new Date(0)
+    const temp_to = req.query.to ? new Date(+req.query.to) : new Date(8640000000000000)
+    console.log(temp_from)
+    console.log(temp_to)
     const t_start = new Date().getTime()
-    client.db('messages').collection('temp').find().toArray((err, temps) => {
+    client.db('messages').collection('temp').find({
+      "timestamp" : {
+        "$gte": temp_from,
+        "$lte": temp_to
+      }
+    }).toArray((err, temps) => {
       const t_end = new Date().getTime()
       const query_duration = t_end - t_start
       res.send({
         query_duration,
-        temps
+        "temps": temps
       });
     });
   });
 
-  router.get('/5mins', (req, res, next) => {
+  router.get('/mins', (req, res, next) => {
     /*
      * Requires the MongoDB Node.js Driver
      * https://mongodb.github.io/node-mongodb-native
      */
 
+    const temp_from = req.query.from ? new Date(+req.query.from) : new Date(0)
+    const temp_to = req.query.to ? new Date(+req.query.to) : new Date(8640000000000000)
+    const bin_minutes = req.query.bin_minutes ? +req.query.bin_minutes : 5
+    console.log(temp_from)
+    console.log(temp_to)
+
     const agg = [
+      {
+        $match: {
+          "timestamp" : {
+            "$gte": temp_from,
+            "$lte": temp_to
+          }
+        }
+      },
       {
         $group: {
           _id: {
-            day_and_hour: {
-              $substr: [
-                '$timestamp', 0, 13,
-              ],
-            },
+            year: { $year: '$timestamp' },
+            month: { $month: '$timestamp' },
+            day: { $dayOfMonth: '$timestamp' },
+            hour: { $hour: '$timestamp' },
             five_min_slot: {
               $toInt: {
                 $divide: [
                   {
-                    $toDouble: {
-                      $substr: [
-                        '$timestamp', 14, 2,
-                      ],
-                    },
+                    $minute: '$timestamp'
                   },
-                  5,
+                  bin_minutes,
                 ],
               },
             },
             topic: '$topic',
           },
-          avg_temp: {
+          temp: {
             $avg: {
               $toDouble: '$temp',
             },
           },
-          sensor_nr: {
+          sensorNr: {
             $first: '$sensorNr',
           },
-          mac_address: {
+          mac: {
             $first: '$mac',
           },
+          timestamp: {
+            $first: '$timestamp',
+          },
+          room: {
+            $first: '$room',
+          }
         },
       },
     ];
@@ -72,7 +96,6 @@ client.connect((err) => {
     const coll = client.db('messages').collection('temp');
     const t_start = new Date().getTime()
     coll.aggregate(agg)
-      // .limit(+req.params.n)
       .toArray((temp_err, aggregated_temps) => {
         const t_end = new Date().getTime()
         const query_duration = t_end - t_start
@@ -80,9 +103,10 @@ client.connect((err) => {
           console.err(`#temprouter: ${temp_err}`);
           res.send(temp_err);
         } else {
+          console.log(aggregated_temps)
           res.send({
             query_duration,
-            aggregated_temps
+            "temps": aggregated_temps
           });
         }
       });
