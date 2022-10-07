@@ -43,39 +43,46 @@ def on_connect(client, userdata, flags, rc):
 
 # The callback for when a PUBLISH message is received from the server.
 def on_message(client, userdata, msg):
-    #print("##################")
-    #print("### ON_MESSAGE ###")
-    #print("##################")    
-    #print(datetime.datetime.now())
-    #print("==================")
-    #print(msg.topic)
-    #print(msg.payload)
-    topic = msg.topic
-    payload = msg.payload.decode('UTF-8')
-    timestamp = datetime.datetime.now()
+    try:
+        #print("##################")
+        #print("### ON_MESSAGE ###")
+        #print("##################")    
+        #print(datetime.datetime.now())
+        #print("==================")
+        #print(msg.topic)
+        #print(msg.payload)
+        topic = msg.topic
+        payload = msg.payload.decode('UTF-8')
+        timestamp = datetime.datetime.now()
     
-    latestMessages[topic.ljust(40)] = payload
+        latestMessages[topic.ljust(40)] = payload
     
-    p = re.compile('esp32\\/sensor-client\\/(.*)\\/temp\\/sensor\\/(\\d+)')
-    m = p.match(topic)
-    if(m is not None):
-      mac = m.group(1)
-      sensorNr = m.group(2)
-      roomNameCursor = messagesDb.names.find({"mac": mac}).sort("since", -1).limit(1)
-      try:
-        doc = roomNameCursor.next()
-      except StopIteration:
-        doc = None
-      print(doc)
-      x = messagesDb.temp.insert_one({"topic": topic, "room": doc["name"] if doc is not None else "Unbekannter Raum", "mac": mac, "sensorNr" : sensorNr, "temp" : payload, "timestamp": timestamp})
-      print(f'Inserted document with id {x.inserted_id}.')
+        p = re.compile('esp32\\/sensor-client\\/(.*)\\/temp\\/sensor\\/(\\d+)')
+        m = p.match(topic)
+        if(m is not None):
+            mac = m.group(1)
+            sensorNr = m.group(2)
+            roomNameCursor = messagesDb.names.find({"mac": mac}).sort("since", -1).limit(1)
+            try:
+                doc = roomNameCursor.next()
+            except StopIteration:
+                doc = None
+            print(doc)
+            x = messagesDb.temp.insert_one({"topic": topic, "room": doc["name"] if doc is not None else "Unbekannter Raum", "mac": mac, "sensorNr" : sensorNr, "temp" : payload, "timestamp": timestamp})
+            print(f'Inserted document with id {x.inserted_id}.')
         
-    #print("==================")
-    #print(client)
-    #print(userdata)
-    #print(msg)
-    #print("==================")
-    #print()
+        #print("==================")
+        #print(client)
+        #print(userdata)
+        #print(msg)
+        #print("==================")
+        #print()
+    except Exception as ex:
+        with open("errors.txt", "a") as errors:
+            errors.write(timestamp)
+            errors.write(ex) 
+        print(timestamp)
+        print(ex)
 
 client = mqtt.Client()
 client.on_connect = on_connect
@@ -84,14 +91,21 @@ client.on_message = on_message
 mqtt_ip = os.environ["MQTT_IP"]
 client.connect(mqtt_ip, 1883, 60) 
 
-# Blocking call that processes network traffic, dispatches callbacks and
-# handles reconnecting.
+# The loop_start() method starts a new thread, that calls the loop method at regular intervals for you. It also handles re-connects automatically. 
 # Other loop*() functions are available that give a threaded interface and a
 # manual interface.
 client.loop_start()
 
 while True:
-    os.system('cls')
-    print(datetime.datetime.now())
-    pp.pprint(latestMessages)
-    time.sleep(2.5)
+    try:
+        os.system('cls')
+        print(datetime.datetime.now())
+        pp.pprint(latestMessages)
+        time.sleep(2.5)
+    except Exception as ex:
+        timestamp = datetime.datetime.now()
+        with open("errors.txt", "a") as errors:
+            errors.write(timestamp) 
+            errors.write(ex) 
+        print(timestamp)
+        print(ex)
