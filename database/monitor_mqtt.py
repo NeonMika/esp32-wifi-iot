@@ -18,6 +18,15 @@ messagesDb = client.messages
 pp = pprint.PrettyPrinter(indent=4)
 latestMessages = {}
 
+def subscribe_to_sys(client):
+    client.subscribe("$SYS/#")
+    print("Subscribed to $SYS/#")
+
+def subscribe_to_hash(client):
+    client.subscribe("#")
+    print("Subscribed to #")
+
+
 # The callback for when the client receives a CONNACK response from the server.
 def on_connect(client, userdata, flags, rc):
     print("##################")
@@ -25,19 +34,17 @@ def on_connect(client, userdata, flags, rc):
     print("##################")
     print(datetime.datetime.now())
     print("==================")
-    print("Connected with result code " + str(rc))
+    print("Connected with result code", rc)
     print("==================")
-    print(client)
-    print(userdata)
-    print(flags)
+    print("client =", client)
+    print("userdata =", userdata)
+    print("flags", flags)
     print("==================")
 
     # Subscribing in on_connect() means that if we lose the connection and
     # reconnect then subscriptions will be renewed.
-    client.subscribe("$SYS/#")
-    print("Subscribed to $SYS/#")
-    client.subscribe("#")
-    print("Subscribed to #")
+    # subscribe_to_sys(client)
+    subscribe_to_hash(client)
     print("==================")
     print()
 
@@ -57,19 +64,22 @@ def on_message(client, userdata, msg):
     
         latestMessages[topic.ljust(40)] = payload
     
+        # Handle new temparature
         p = re.compile('esp32\\/sensor-client\\/(.*)\\/temp\\/sensor\\/(\\d+)')
         m = p.match(topic)
         if(m is not None):
             mac = m.group(1)
             sensorNr = m.group(2)
             roomNameCursor = messagesDb.names.find({"mac": mac}).sort("since", -1).limit(1)
+            print("TEMP", timestamp, mac, sensorNr, payload, sep=' | ')
             try:
-                doc = roomNameCursor.next()
+                roomDoc = roomNameCursor.next()
             except StopIteration:
-                doc = None
-            print(doc)
-            x = messagesDb.temp.insert_one({"topic": topic, "room": doc["name"] if doc is not None else "Unbekannter Raum", "mac": mac, "sensorNr" : sensorNr, "temp" : payload, "timestamp": timestamp})
-            print(f'Inserted document with id {x.inserted_id}.')
+                roomDoc = None
+            roomName = roomDoc['name'] if roomDoc is not None else 'Unbekannter Raum'
+            print('       ', roomName, sep='')
+            x = messagesDb.temp.insert_one({"topic": topic, "room": roomName, "mac": mac, "sensorNr" : sensorNr, "temp" : payload, "timestamp": timestamp})
+            print(f'       Inserted document with id {x.inserted_id}.')
         
         #print("==================")
         #print(client)
@@ -79,8 +89,8 @@ def on_message(client, userdata, msg):
         #print()
     except Exception as ex:
         with open("errors.txt", "a") as errors:
-            errors.write(timestamp)
-            errors.write(ex) 
+            errors.write(str(timestamp))
+            errors.write(str(ex)) 
         print(timestamp)
         print(ex)
 
@@ -98,14 +108,14 @@ client.loop_start()
 
 while True:
     try:
-        os.system('cls')
-        print(datetime.datetime.now())
-        pp.pprint(latestMessages)
+#        os.system('cls')
+#        print(datetime.datetime.now())
+#        pp.pprint(latestMessages)
         time.sleep(2.5)
     except Exception as ex:
         timestamp = datetime.datetime.now()
         with open("errors.txt", "a") as errors:
-            errors.write(timestamp) 
-            errors.write(ex) 
+            errors.write(str(timestamp)) 
+            errors.write(str(ex)) 
         print(timestamp)
         print(ex)
