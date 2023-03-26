@@ -1,0 +1,14 @@
+db.temp.deleteMany({
+    '$expr': {
+        '$eq': [
+            {
+                '$mod': [
+                    { '$minute': '$timestamp' },
+                    2
+                ]
+            },
+            1
+        ]
+    }
+}
+)
